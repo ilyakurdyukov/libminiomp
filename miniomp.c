@@ -345,12 +345,12 @@ EXPORT void GOMP_loop_end_nowait() {
 	// LOG("loop_end_nowait\n");
 }
 
-static void miniomp_barrier(int loop_end) {
+static void miniomp_barrier() {
 	gomp_thread_t *thr = gomp_thread();
 	gomp_work_t *ws = thr->work_share;
 	int i, nthreads = ws->nthreads;
 	if (nthreads == 1) {
-		if (loop_end) ws->lock = 0;
+		ws->lock = 0;
 		return;
 	}
 	// LOG("barrier: team_id = %i\n", thr->team_id);
@@ -359,14 +359,14 @@ static void miniomp_barrier(int loop_end) {
 	i = __sync_add_and_fetch(&ws->wait, 1);
 	if (i < nthreads) { gomp_mutex_lock(&barrier_lock); ws->wait++; }
 	else {
-		if (loop_end) ws->lock = 0;
+		ws->lock = 0;
 		ws->wait = -nthreads;
 	}
 	gomp_mutex_unlock(&barrier_lock);
 }
 
-EXPORT void GOMP_barrier() { miniomp_barrier(0); }
-EXPORT void GOMP_loop_end() { miniomp_barrier(1); }
+EXPORT void GOMP_barrier() { miniomp_barrier(); }
+EXPORT void GOMP_loop_end() { miniomp_barrier(); }
 
 #define M1(fn, copy) extern __typeof(fn) copy __attribute__((alias(#fn)));
 M1(GOMP_parallel_loop_dynamic, GOMP_parallel_loop_guided)
@@ -388,6 +388,11 @@ M1(GOMP_loop_ull_dynamic_next, GOMP_loop_ull_nonmonotonic_guided_next)
 
 EXPORT void GOMP_critical_start() { gomp_mutex_lock(&default_lock); }
 EXPORT void GOMP_critical_end() { gomp_mutex_unlock(&default_lock); }
+
+EXPORT bool GOMP_single_start() {
+	gomp_work_t *ws = gomp_thread()->work_share;
+	return __sync_val_compare_and_swap(&ws->lock, 0, 1) == 0;
+}
 
 #ifndef CLANG_KMP
 #ifdef __clang__
@@ -503,7 +508,7 @@ EXPORT void __kmpc_fork_call(kmp_ident *loc, int32_t argc, kmpc_micro microtask,
 
 EXPORT void __kmpc_barrier(kmp_ident *loc, int32_t gtid) {
 	(void)loc; (void)gtid;
-	miniomp_barrier(1);
+	miniomp_barrier();
 }
 
 EXPORT void __kmpc_critical(kmp_ident *loc, int32_t gtid, kmp_critical_name *crit) {
@@ -658,6 +663,16 @@ M1(8u, int64_t, uint64_t, uint64_t)
 #undef M1
 
 EXPORT void __kmpc_for_static_fini(kmp_ident *loc, int32_t gtid) {
+	(void)loc; (void)gtid;
+}
+
+EXPORT int32_t __kmpc_single(kmp_ident *loc, int32_t gtid) {
+	KMP_GETTASK;
+	(void)loc;
+	return __sync_val_compare_and_swap(&ws->lock, 0, 1) == 0;
+}
+
+EXPORT void __kmpc_end_single(kmp_ident *loc, int32_t gtid) {
 	(void)loc; (void)gtid;
 }
 #endif

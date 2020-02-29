@@ -35,6 +35,7 @@ You can link object files from GCC and CLANG together with the same library.
 - 32/64-bit loop index
 - `critical` (unnamed only)
 - `barrier`
+- `single`
 - features implemented by the compiler (inlined in object code)  
 `schedule(static)` implemented by *GCC*
 

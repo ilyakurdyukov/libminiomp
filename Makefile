@@ -20,7 +20,7 @@ clean:
 	rm -f $(APPNAME) $(SRCNAME:.c=.o) $(SRCNAME:.c=.s) miniomp.o miniomp.s
 
 %.s: %.c
-	$(CC) $(CFLAGS) -S $< -o $@ $(SFLAGS)
+	$(CC) $(CFLAGS) -S $< -o $@ -fopenmp $(SFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@ -fopenmp

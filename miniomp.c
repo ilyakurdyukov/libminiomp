@@ -394,6 +394,25 @@ EXPORT bool GOMP_single_start() {
 	return __sync_val_compare_and_swap(&ws->lock, 0, 1) == 0;
 }
 
+EXPORT void GOMP_parallel_sections(TEAM_ARGS, unsigned count, unsigned flags) {
+	(void)flags; (void)count;
+	// LOG("parallel_sections: count = %i\n", count);
+	if (nthreads <= 0) nthreads = nthreads_var;
+	if (nthreads > count) nthreads = count;
+	GOMP_parallel_loop_dynamic(fn, data, nthreads, 0, count, 1, 1, flags);
+}
+
+EXPORT unsigned GOMP_sections_next() {
+	long start, end;
+	// LOG("sections_next\n");
+	if (!GOMP_loop_dynamic_next(&start, &end)) return 0;
+	return end;
+}
+
+EXPORT void GOMP_sections_end_nowait() {
+	// LOG("sections_end_nowait\n");
+}
+
 #ifndef CLANG_KMP
 #ifdef __clang__
 #define CLANG_KMP 1

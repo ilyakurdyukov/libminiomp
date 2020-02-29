@@ -36,8 +36,10 @@ You can link object files from GCC and CLANG together with the same library.
 - `critical` (unnamed only)
 - `barrier`
 - `single`
+- `sections` for *GCC*
 - features implemented by the compiler (inlined in object code)  
 `schedule(static)` implemented by *GCC*
+`sections` implemented by *CLANG*
 
 ### Unsupported
 
@@ -45,7 +47,6 @@ You can link object files from GCC and CLANG together with the same library.
 - `for ordered`
 - `schedule(runtime)`
 - named `critical`
-- `sections`
 
 And other rarely used features.
 

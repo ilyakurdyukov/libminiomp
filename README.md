@@ -27,30 +27,28 @@ You can link object files from GCC and CLANG together with the same library.
 - *CLANG* compiler (`__kmpc_*` interface)
 - `parallel`
 - `for`
-- `for num_threads(*)`
-- `for schedule(dynamic)`
-- `for schedule(*, chunk-size)`
+- `num_threads`
+- `schedule(static)` for *CLANG*
+- `schedule(dynamic)`
+- `chunk-size`
 - loop with index decrement
 - 32/64-bit loop index
 - `critical` (unnamed only)
 - `barrier`
-- features implemented by the compiler (inlined in object code)
+- features implemented by the compiler (inlined in object code)  
+`schedule(static)` implemented by *GCC*
 
 ### Unsupported
 
 - `for nowait`
 - `for ordered`
-- `for schedule(static)` with *CLANG*
-- `for schedule(runtime)`
+- `schedule(runtime)`
 - named `critical`
 - `sections`
 
 And other rarely used features.
 
 ### Limitations
-
-- no `schedule(static)` implementation  
-(but *GCC* doesn't generate such dependencies)
 
 - `guided` work same as `dynamic`
 

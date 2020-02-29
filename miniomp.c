@@ -36,12 +36,12 @@
 #include <unistd.h>
 
 #ifdef _WIN32
-#define HIDDEN
+#define EXPORT
 #else
-#define HIDDEN __attribute__((visibility("hidden")))
+#define EXPORT __attribute__((visibility("hidden")))
 #endif
 
-#define LOG0(...)
+#define LOG0(...) { }
 #define LOG(...) { fprintf(stderr, __VA_ARGS__); fflush(stderr); }
 
 #ifndef DYN_ARRAYS
@@ -203,11 +203,11 @@ static void miniomp_deinit() {
 }
 
 static inline gomp_thread_t* gomp_thread() { return TLS_GET; }
-HIDDEN int omp_get_thread_num() { return gomp_thread()->team_id; }
-HIDDEN int omp_get_num_procs() { return num_procs; }
-HIDDEN int omp_get_max_threads() { return nthreads_var; }
-HIDDEN int omp_get_num_threads() { return gomp_thread()->work_share->nthreads; }
-HIDDEN void omp_set_num_threads(int n) { nthreads_var = n > 0 ? n : 1; }
+EXPORT int omp_get_thread_num() { return gomp_thread()->team_id; }
+EXPORT int omp_get_num_procs() { return num_procs; }
+EXPORT int omp_get_max_threads() { return nthreads_var; }
+EXPORT int omp_get_num_threads() { return gomp_thread()->work_share->nthreads; }
+EXPORT void omp_set_num_threads(int n) { nthreads_var = n > 0 ? n : 1; }
 
 #define DYN_NEXT(name, type, next, chunk1, end1) \
 static bool gomp_iter_##name(gomp_work_t *ws, type *pstart, type *pend) { \
@@ -303,45 +303,45 @@ static THREAD_CALLBACK(gomp_threadfunc) {
 #define TEAM_ARGS void (*fn)(void*), void *data, unsigned nthreads
 #define LOOP_ARGS(t) t start, t end, t incr, t chunk
 
-HIDDEN void GOMP_parallel(TEAM_ARGS, unsigned flags) {
+EXPORT void GOMP_parallel(TEAM_ARGS, unsigned flags) {
 	(void)flags;
 	gomp_work_t ws;
 	TEAM_INIT(ws) ws.lock = 0;
 	TEAM_START(gomp, fn(data))
 }
 
-HIDDEN void GOMP_parallel_loop_dynamic(TEAM_ARGS, LOOP_ARGS(long), unsigned flags) {
+EXPORT void GOMP_parallel_loop_dynamic(TEAM_ARGS, LOOP_ARGS(long), unsigned flags) {
 	(void)flags;
 	gomp_work_t ws;
 	TEAM_INIT(ws) LOOP_INIT(ws) ws.lock = 2;
 	TEAM_START(gomp, fn(data))
 }
 
-HIDDEN bool GOMP_loop_dynamic_start(LOOP_ARGS(long), long *istart, long *iend) {
+EXPORT bool GOMP_loop_dynamic_start(LOOP_ARGS(long), long *istart, long *iend) {
 	gomp_thread_t *thr = gomp_thread();
 	gomp_work_t *ws = thr->work_share;
 	LOOP_START(INIT)
 	return gomp_iter_dynamic_next(ws, istart, iend);
 }
 
-HIDDEN bool GOMP_loop_ull_dynamic_start(bool up, LOOP_ARGS(gomp_ull), gomp_ull *istart, gomp_ull *iend) {
+EXPORT bool GOMP_loop_ull_dynamic_start(bool up, LOOP_ARGS(gomp_ull), gomp_ull *istart, gomp_ull *iend) {
 	gomp_thread_t *thr = gomp_thread();
 	gomp_work_t *ws = thr->work_share;
 	LOOP_START(ULL_INIT)
 	return gomp_iter_ull_dynamic_next(ws, istart, iend);
 }
 
-HIDDEN bool GOMP_loop_dynamic_next(long *istart, long *iend) {
+EXPORT bool GOMP_loop_dynamic_next(long *istart, long *iend) {
 	// LOG("loop_dynamic_next: istart = %p, iend = %p\n", istart, iend);
 	return gomp_iter_dynamic_next(gomp_thread()->work_share, istart, iend);
 }
 
-HIDDEN bool GOMP_loop_ull_dynamic_next(gomp_ull *istart, gomp_ull *iend) {
+EXPORT bool GOMP_loop_ull_dynamic_next(gomp_ull *istart, gomp_ull *iend) {
 	// LOG("loop_ull_dynamic_next: istart = %p, iend = %p\n", istart, iend);
 	return gomp_iter_ull_dynamic_next(gomp_thread()->work_share, istart, iend);
 }
 
-HIDDEN void GOMP_loop_end_nowait() {
+EXPORT void GOMP_loop_end_nowait() {
 	// LOG("loop_end_nowait\n");
 }
 
@@ -365,8 +365,8 @@ static void miniomp_barrier(int loop_end) {
 	gomp_mutex_unlock(&barrier_lock);
 }
 
-HIDDEN void GOMP_barrier() { miniomp_barrier(0); }
-HIDDEN void GOMP_loop_end() { miniomp_barrier(1); }
+EXPORT void GOMP_barrier() { miniomp_barrier(0); }
+EXPORT void GOMP_loop_end() { miniomp_barrier(1); }
 
 #define M1(fn, copy) extern __typeof(fn) copy __attribute__((alias(#fn)));
 M1(GOMP_parallel_loop_dynamic, GOMP_parallel_loop_guided)
@@ -386,8 +386,8 @@ M1(GOMP_loop_ull_dynamic_start, GOMP_loop_ull_nonmonotonic_guided_start)
 M1(GOMP_loop_ull_dynamic_next, GOMP_loop_ull_nonmonotonic_guided_next)
 #undef M1
 
-HIDDEN void GOMP_critical_start() { gomp_mutex_lock(&default_lock); }
-HIDDEN void GOMP_critical_end() { gomp_mutex_unlock(&default_lock); }
+EXPORT void GOMP_critical_start() { gomp_mutex_lock(&default_lock); }
+EXPORT void GOMP_critical_end() { gomp_mutex_unlock(&default_lock); }
 
 #ifndef CLANG_KMP
 #ifdef __clang__
@@ -398,14 +398,12 @@ HIDDEN void GOMP_critical_end() { gomp_mutex_unlock(&default_lock); }
 #endif
 
 #if CLANG_KMP
-typedef int32_t kmp_int32;
-typedef int64_t kmp_int64;
-typedef void (*kmpc_micro)(kmp_int32 *gtid, kmp_int32 *tid, ...);
+typedef void (*kmpc_micro)(int32_t *gtid, int32_t *tid, ...);
 typedef struct ident {
-  kmp_int32 reserved_1, flags, reserved_2, reserved_3;
+  int32_t reserved_1, flags, reserved_2, reserved_3;
   char const *psource;
-} ident_t;
-typedef kmp_int32 kmp_critical_name[8];
+} kmp_ident;
+typedef int32_t kmp_critical_name[8];
 enum sched_type {
   kmp_sch_static_chunked = 33,
   kmp_sch_static = 34,
@@ -415,25 +413,25 @@ enum sched_type {
 
 typedef struct {
 	gomp_work_t ws;
-	kmp_int32 gtid, argc;
+	int32_t gtid, argc;
 	union { gomp_ull incr_ull; long incr; };
 } kmp_work_t;
 
 static struct {
-	kmp_int32 nthreads;
+	int32_t nthreads;
 	kmp_work_t *task;
 } kmp_global[1] = { { 0 } };
 
-static kmp_int32 __kmp_entry_gtid() {
+static int32_t __kmp_entry_gtid() {
 	return 0;
 }
 
-HIDDEN kmp_int32 __kmpc_global_thread_num(ident_t *loc) {
+EXPORT int32_t __kmpc_global_thread_num(kmp_ident *loc) {
 	(void)loc;
 	return __kmp_entry_gtid();
 }
 
-HIDDEN void __kmpc_push_num_threads(ident_t *loc, kmp_int32 gtid, kmp_int32 nthreads) {
+EXPORT void __kmpc_push_num_threads(kmp_ident *loc, int32_t gtid, int32_t nthreads) {
 	(void)loc;
 	kmp_global[gtid].nthreads = nthreads;
 }
@@ -477,7 +475,7 @@ static THREAD_CALLBACK(kmp_threadfunc) {
 
 #include "stdarg.h"
 
-HIDDEN void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
+EXPORT void __kmpc_fork_call(kmp_ident *loc, int32_t argc, kmpc_micro microtask, ...) {
 	int i, gtid = __kmp_entry_gtid();
 	unsigned nthreads = kmp_global[gtid].nthreads;
 	kmp_work_t task; void *argv[15];
@@ -503,17 +501,17 @@ HIDDEN void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
 	}
 }
 
-HIDDEN void __kmpc_barrier(ident_t *loc, kmp_int32 gtid) {
+EXPORT void __kmpc_barrier(kmp_ident *loc, int32_t gtid) {
 	(void)loc; (void)gtid;
 	miniomp_barrier(1);
 }
 
-HIDDEN void __kmpc_critical(ident_t *loc, kmp_int32 gtid, kmp_critical_name *crit) {
+EXPORT void __kmpc_critical(kmp_ident *loc, int32_t gtid, kmp_critical_name *crit) {
 	(void)loc; (void)gtid; (void)crit;
 	gomp_mutex_lock(&default_lock);
 }
 
-HIDDEN void __kmpc_end_critical(ident_t *loc, kmp_int32 gtid, kmp_critical_name *crit) {
+EXPORT void __kmpc_end_critical(kmp_ident *loc, int32_t gtid, kmp_critical_name *crit) {
 	(void)loc; (void)gtid; (void)crit;
 	gomp_mutex_unlock(&default_lock);
 }
@@ -521,100 +519,145 @@ HIDDEN void __kmpc_end_critical(ident_t *loc, kmp_int32 gtid, kmp_critical_name 
 #define LOOP_INIT_KMP(ws) LOOP_INIT(ws) task->incr = incr;
 #define LOOP_ULL_INIT_KMP(ws) LOOP_ULL_INIT(ws) task->incr_ull = incr;
 
+#define KMP_GETTASK_THR (void)gtid; gomp_thread_t *thr = gomp_thread(); \
+	gomp_work_t *ws = thr->work_share; kmp_work_t *task = (kmp_work_t*)ws;
+
 #if 1
 #define KMP_GETTASK \
 	kmp_work_t *task = kmp_global[gtid].task; \
 	gomp_work_t *ws = &task->ws;
 #else
-#define KMP_GETTASK (void)gtid; gomp_thread_t *thr = gomp_thread(); \
-	gomp_work_t *ws = thr->work_share; kmp_work_t *task = (kmp_work_t*)ws;
+#define KMP_GETTASK KMP_GETTASK_THR
 #endif
 
-#define KMP_INIT_FUNC(t1, t) \
-HIDDEN void __kmpc_dispatch_init_##t1(ident_t *loc, kmp_int32 gtid, \
-	kmp_int32 schedule, t lb, t ub, t st, t chunk1)
+#define KMP_INIT_FUNC(name, ST, T) \
+EXPORT void __kmpc_dispatch_init_##name(kmp_ident *loc, int32_t gtid, \
+	int32_t sched, T lb, T ub, ST st, ST chunk1)
 
-KMP_INIT_FUNC(4, kmp_int32) {
-	(void)loc; (void)schedule;
+KMP_INIT_FUNC(4, int32_t, int32_t) {
 	long start = lb, end = ub + st, incr = st, chunk = chunk1;
 	KMP_GETTASK
+	(void)loc; (void)sched;
 	LOOP_START(INIT_KMP)
 }
 
-KMP_INIT_FUNC(4u, kmp_int32) {
-	(void)loc; (void)schedule;
+KMP_INIT_FUNC(4u, int32_t, uint32_t) {
 	long s = -1UL << 31;
 	long start = lb + s, end = ub + st + s, incr = st, chunk = chunk1;
 	KMP_GETTASK
+	(void)loc; (void)sched;
 	LOOP_START(INIT_KMP)
 }
 
-KMP_INIT_FUNC(8, kmp_int64) {
-	(void)loc; (void)schedule;
+KMP_INIT_FUNC(8, int64_t, int64_t) {
 	bool up = st >= 0;
 	gomp_ull s = 1ULL << 63;
 	gomp_ull start = lb + s, end = ub + st + s, incr = st, chunk = chunk1;
 	KMP_GETTASK
+	(void)loc; (void)sched;
 	LOOP_START(ULL_INIT_KMP)
 }
 
-KMP_INIT_FUNC(8u, kmp_int64) {
-	(void)loc; (void)schedule;
+KMP_INIT_FUNC(8u, int64_t, uint64_t) {
 	bool up = st >= 0;
 	gomp_ull start = lb, end = ub + st, incr = st, chunk = chunk1;
 	KMP_GETTASK
+	(void)loc; (void)sched;
 	LOOP_START(ULL_INIT_KMP)
 }
 
-#define KMP_NEXT_FUNC(t1, t) \
-HIDDEN int __kmpc_dispatch_next_##t1(ident_t *loc, kmp_int32 gtid, \
-		kmp_int32 *p_last, t *p_lb, t *p_ub, t *p_st)
+#define KMP_NEXT_FUNC(name, ST, T) \
+EXPORT int __kmpc_dispatch_next_##name(kmp_ident *loc, int32_t gtid, \
+		int32_t *p_last, T *p_lb, T *p_ub, ST *p_st)
 
-KMP_NEXT_FUNC(4, kmp_int32) {
+KMP_NEXT_FUNC(4, int32_t, int32_t) {
 	long start, end, incr;
-	(void)loc; (void)p_last;
 	KMP_GETTASK
+	(void)loc;
 	if (!gomp_iter_dynamic_next(ws, &start, &end)) return 0;
 	incr = task->incr;
 	if (p_st) *p_st = incr;
 	*p_lb = start;
 	*p_ub = end - incr;
+	if (p_last) *p_last = end == ws->end;
 	return 1;
 }
 
-KMP_NEXT_FUNC(4u, kmp_int32) {
+KMP_NEXT_FUNC(4u, int32_t, uint32_t) {
 	long start, end, incr, s = -1UL << 31;
-	(void)loc; (void)p_last;
 	KMP_GETTASK
+	(void)loc;
 	if (!gomp_iter_dynamic_next(ws, &start, &end)) return 0;
 	incr = task->incr;
 	if (p_st) *p_st = incr;
 	*p_lb = start - s;
 	*p_ub = end - (incr + s);
+	if (p_last) *p_last = end == ws->end;
 	return 1;
 }
 
-KMP_NEXT_FUNC(8, kmp_int64) {
+KMP_NEXT_FUNC(8, int64_t, int64_t) {
 	gomp_ull start, end, incr, s = 1ULL << 63;
-	(void)loc; (void)p_last;
 	KMP_GETTASK
+	(void)loc;
 	if (!gomp_iter_ull_dynamic_next(ws, &start, &end)) return 0;
 	incr = task->incr_ull;
 	if (p_st) *p_st = incr;
 	*p_lb = start - s;
 	*p_ub = end - (incr + s);
+	if (p_last) *p_last = end == ws->end_ull;
 	return 1;
 }
 
-KMP_NEXT_FUNC(8u, kmp_int64) {
+KMP_NEXT_FUNC(8u, int64_t, uint64_t) {
 	gomp_ull start, end, incr;
-	(void)loc; (void)p_last;
 	KMP_GETTASK
+	(void)loc;
 	if (!gomp_iter_ull_dynamic_next(ws, &start, &end)) return 0;
 	incr = task->incr_ull;
 	if (p_st) *p_st = incr;
 	*p_lb = start;
 	*p_ub = end - incr;
+	if (p_last) *p_last = end == ws->end_ull;
 	return 1;
+}
+
+#define KMP_STATIC_FUNC(name, ST, T) \
+EXPORT void __kmpc_for_static_init_##name(kmp_ident *loc, \
+		int32_t gtid, int32_t sched, int32_t *p_last, \
+		T *p_lb, T *p_ub, ST *p_st, ST incr, ST chunk)
+
+#define M1(name, ST, T, UT) KMP_STATIC_FUNC(name, ST, T) { \
+	KMP_GETTASK_THR \
+	unsigned tid = thr->team_id, nth = ws->nthreads; \
+	T lb = *p_lb, ub = *p_ub; ST ci; UT count, div, mod; \
+	if (!tid) LOG0("static_init: sched = %i, chunk = %i\n", sched, (int)chunk); \
+	(void)loc; (void)sched; (void)task; \
+	if (incr > 0 ? lb > ub : lb < ub) { if (p_last) *p_last = 0; return; } \
+	if (chunk < 1) chunk = 1; ci = chunk * incr; \
+	count = (incr > 0 ? (UT)(ub - lb) / ci : (UT)(lb - ub) / -ci) + 1; \
+	*p_st = count * chunk; \
+	if (count <= nth) { \
+		if (tid < count) { *p_lb = lb += tid * ci; lb += ci - incr; \
+			*p_ub = incr > 0 ? lb <= ub ? lb : ub : lb >= ub ? lb : ub; \
+		} else *p_lb = ub + incr; \
+		if (p_last) *p_last = tid == count - 1; \
+		return; \
+	} \
+	div = count / nth; mod = count % nth; \
+	*p_lb = lb += ci * (tid * div + (tid < mod ? tid : mod)); \
+	lb += div * ci - (tid < mod ? 0 : ci) + ci - incr; \
+	*p_ub = incr > 0 ? lb <= ub ? lb : ub : lb >= ub ? lb : ub; \
+	if (p_last) *p_last = tid == nth - 1; \
+}
+
+M1(4, int32_t, int32_t, uint32_t)
+M1(4u, int32_t, uint32_t, uint32_t)
+M1(8, int64_t, int64_t, uint64_t)
+M1(8u, int64_t, uint64_t, uint64_t)
+#undef M1
+
+EXPORT void __kmpc_for_static_fini(kmp_ident *loc, int32_t gtid) {
+	(void)loc; (void)gtid;
 }
 #endif

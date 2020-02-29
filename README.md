@@ -38,7 +38,7 @@ You can link object files from GCC and CLANG together with the same library.
 - `single`
 - `sections` for *GCC*
 - features implemented by the compiler (inlined in object code)  
-`schedule(static)` implemented by *GCC*
+`schedule(static)` implemented by *GCC*  
 `sections` implemented by *CLANG*
 
 ### Unsupported

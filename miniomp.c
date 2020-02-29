@@ -230,7 +230,7 @@ static bool gomp_iter_##name(gomp_work_t *ws, type *pstart, type *pend) { \
 			type left = end - start, tmp; \
 			if (!left) return false; \
 			if (mode & 2) { if (chunk < left) chunk = left; } \
-			else if (chunk > left) chunk = left;  \
+			else if (chunk > left) chunk = left; \
 			nend = start + chunk; \
 			tmp = __sync_val_compare_and_swap(&ws->next, start, nend); \
 			if (tmp == start) break; \
@@ -402,6 +402,12 @@ EXPORT void GOMP_parallel_sections(TEAM_ARGS, unsigned count, unsigned flags) {
 	GOMP_parallel_loop_dynamic(fn, data, nthreads, 0, count, 1, 1, flags);
 }
 
+EXPORT unsigned GOMP_sections_start(unsigned count) {
+	long start, end;
+	if (!GOMP_loop_dynamic_start(0, count, 1, 1, &start, &end)) return 0;
+	return end;
+}
+
 EXPORT unsigned GOMP_sections_next() {
 	long start, end;
 	// LOG("sections_next\n");
@@ -412,6 +418,8 @@ EXPORT unsigned GOMP_sections_next() {
 EXPORT void GOMP_sections_end_nowait() {
 	// LOG("sections_end_nowait\n");
 }
+
+EXPORT void GOMP_sections_end() { miniomp_barrier(); }
 
 #ifndef CLANG_KMP
 #ifdef __clang__
@@ -424,15 +432,15 @@ EXPORT void GOMP_sections_end_nowait() {
 #if CLANG_KMP
 typedef void (*kmpc_micro)(int32_t *gtid, int32_t *tid, ...);
 typedef struct ident {
-  int32_t reserved_1, flags, reserved_2, reserved_3;
-  char const *psource;
+	int32_t reserved_1, flags, reserved_2, reserved_3;
+	char const *psource;
 } kmp_ident;
 typedef int32_t kmp_critical_name[8];
 enum sched_type {
-  kmp_sch_static_chunked = 33,
-  kmp_sch_static = 34,
-  kmp_sch_dynamic_chunked = 35,
-  kmp_sch_guided_chunked = 36
+	kmp_sch_static_chunked = 33,
+	kmp_sch_static = 34,
+	kmp_sch_dynamic_chunked = 35,
+	kmp_sch_guided_chunked = 36
 };
 
 typedef struct {

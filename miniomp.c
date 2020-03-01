@@ -33,12 +33,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <unistd.h>
 
+#ifndef EXPORT
 #ifdef _WIN32
 #define EXPORT
 #else
 #define EXPORT __attribute__((visibility("hidden")))
+#endif
 #endif
 
 #define LOG0(...) { }
@@ -50,6 +51,19 @@
 
 #ifndef MAX_THREADS
 #define MAX_THREADS 16
+#endif
+
+// nonzero : omp_get_num_procs() returns value calculated at library startup
+#ifndef NCPU_CACHE
+#define NCPU_CACHE 0
+#endif
+
+#ifndef NCPU_METHOD
+#ifdef _WIN32
+#define NCPU_METHOD 0
+#else
+#define NCPU_METHOD 1
+#endif
 #endif
 
 // need for ULL loops with negative increment ending at zero
@@ -103,23 +117,86 @@ typedef struct {
 	struct { THREAD_FIELDS } impl;
 } gomp_thread_t;
 
-static int nthreads_var = 1, num_procs = 1;
-
+static int nthreads_var = 1;
 static gomp_work_t gomp_work_default = { NULL, NULL, 1, -1, 0, 0, { 0 }, { 0 }, { 0 } };
 static gomp_thread_t gomp_thread_default = { 0, &gomp_work_default, { 0 } };
 
-static inline void gomp_init_num_threads() {
+#ifndef _WIN32
+#if NCPU_METHOD == 0
+#include <unistd.h>
+#include <sys/syscall.h>
+#elif NCPU_METHOD == 1
+#include <unistd.h>
+#elif NCPU_METHOD == 2
+static int read_cpu_mask(char *mask, int mask_len, int op, const char *fn) {
+	FILE *f; int count = 0, st = -1, a = ' ';
+	if (!(f = fopen(fn, "rb"))) return 0;
+	for (;;) {
+#define GETC if (a == ' ') do a = fgetc(f); while (a == ' ');
+		int n = 0; GETC if (a == EOF) break;
+		if ((unsigned)(a - '0') >= 10) break;
+		do { if (n >= 0xccccccc) { fclose(f); return count; }
+			n = n * 10 + a - '0'; a = fgetc(f);
+		} while ((unsigned)(a - '0') < 10);
+		GETC
+#undef GETC
+		if (a == '-') { if (st >= 0) break; st = n; a = ' '; }
+		else { if (st < 0) st = n;
+			// printf("(%i-%i)\n", st, n);
+			for (; st <= n && st < mask_len * 8; st++) {
+				int x = 1 << (st & 7);
+				if (op) { count += !!(mask[st >> 3] & x); mask[st >> 3] &= ~x; }
+				else { count += !(mask[st >> 3] & x); mask[st >> 3] |= x; }
+			}
+			if (a != ',') break;
+			st = -1; a = ' ';
+		}
+	}
+	fclose(f); return count;
+}
+#endif
+#endif // _WIN32
+
+#if NCPU_CACHE
+static int num_procs = 1;
+EXPORT int omp_get_num_procs() { return num_procs; }
+static int miniomp_reset_num_procs() {
+#else
+#define miniomp_reset_num_procs omp_get_num_procs
+EXPORT int omp_get_num_procs() {
+#endif
+#if NCPU_METHOD == 0
 #ifdef _WIN32
-	DWORD_PTR procMask, sysMask;
-	int count = 0;
+	DWORD_PTR procMask, sysMask; unsigned count = 0;
 	if (GetProcessAffinityMask(GetCurrentProcess(), &procMask, &sysMask)) {
 		if (procMask) do count++; while (procMask &= procMask - 1);
 	}
 #else
-	int count = sysconf(_SC_NPROCESSORS_ONLN);
+	unsigned count = 0, i; int32_t mask[8] = { 0 }, a;
+	syscall(__NR_sched_getaffinity, syscall(SYS_gettid), sizeof(mask), mask);
+	for (i = 0; i < sizeof(mask) / sizeof(mask[0]); i++)
+		if ((a = mask[i])) do count++; while (a &= a - 1);
 #endif
+#elif NCPU_METHOD == 1
+	int count = sysconf(_SC_NPROCESSORS_ONLN);
+#else // NCPU_METHOD == 2
+#ifdef _WIN32
+	SYSTEM_INFO sysinfo; unsigned count;
+	GetSystemInfo(&sysinfo);
+	count = sysinfo.dwNumberOfProcessors;
+#else
+	char mask[32] = { 0 }; unsigned count;
+	read_cpu_mask(mask, sizeof(mask), 0, "/sys/devices/system/cpu/possible");
+	count = read_cpu_mask(mask, sizeof(mask), 1, "/sys/devices/system/cpu/present");
+#endif
+#endif
+	// LOG("num_procs = %u\n", count);
 	if (count < 1) count = 1;
-	num_procs = nthreads_var = count;
+	if (count > MAX_THREADS) count = MAX_THREADS;
+#if NCPU_CACHE
+	num_procs = count;
+#endif
+	return count;
 }
 
 #ifdef _WIN32
@@ -187,7 +264,7 @@ static void miniomp_init() {
 	MUTEX_INIT(&default_lock)
 	MUTEX_INIT(&barrier_lock)
 #endif
-	gomp_init_num_threads();
+	nthreads_var = miniomp_reset_num_procs();
 }
 
 __attribute__((destructor))
@@ -204,7 +281,6 @@ static void miniomp_deinit() {
 
 static inline gomp_thread_t* gomp_thread() { return TLS_GET; }
 EXPORT int omp_get_thread_num() { return gomp_thread()->team_id; }
-EXPORT int omp_get_num_procs() { return num_procs; }
 EXPORT int omp_get_max_threads() { return nthreads_var; }
 EXPORT int omp_get_num_threads() { return gomp_thread()->work_share->nthreads; }
 EXPORT void omp_set_num_threads(int n) { nthreads_var = n > 0 ? n : 1; }

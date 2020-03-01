@@ -778,4 +778,23 @@ EXPORT int32_t __kmpc_single(kmp_ident *loc, int32_t gtid) {
 EXPORT void __kmpc_end_single(kmp_ident *loc, int32_t gtid) {
 	(void)loc; (void)gtid;
 }
+
+#define KMP_REDUCE_FUNC(name) \
+EXPORT int32_t __kmpc_##name(kmp_ident *loc, int32_t gtid, \
+		int32_t num_vars, size_t reduce_size, void *reduce_data, \
+		void (*func)(void *lhs_data, void *rhs_data), kmp_critical_name *crit)
+#define KMP_END_REDUCE_FUNC(name) \
+EXPORT void __kmpc_end_##name(kmp_ident *loc, int32_t gtid, kmp_critical_name *crit)
+
+KMP_REDUCE_FUNC(reduce_nowait) { (void)loc; (void)gtid; (void)crit;
+	(void)num_vars; (void)reduce_size; (void)reduce_data; (void)func;
+	return 2;
+}
+KMP_REDUCE_FUNC(reduce) { (void)loc; (void)gtid; (void)crit;
+	(void)num_vars; (void)reduce_size; (void)reduce_data; (void)func;
+	return 2;
+}
+KMP_END_REDUCE_FUNC(reduce_nowait) { (void)loc; (void)gtid; (void)crit; }
+KMP_END_REDUCE_FUNC(reduce) { (void)loc; (void)gtid; (void)crit; }
+
 #endif

@@ -37,9 +37,12 @@ You can link object files from GCC and CLANG together with the same library.
 - `barrier`
 - `single`
 - `sections` for *GCC*
+- `reduction` for *CLANG* (stub)
 - features implemented by the compiler (inlined in object code)  
-`schedule(static)` implemented by *GCC*  
-`sections` implemented by *CLANG*
+  - `atomic`  
+  - `reduction` with *GCC*  
+  - `schedule(static)` with *GCC*  
+  - `sections` with *CLANG*
 
 ### Unsupported
 

@@ -38,11 +38,13 @@ You can link object files from GCC and CLANG together with the same library.
 - `single`
 - `sections` for *GCC*
 - `reduction` for *CLANG* (stub)
+- `master` for *CLANG*
 - features implemented by the compiler (inlined in object code)  
   - `atomic`  
-  - `reduction` with *GCC*  
   - `schedule(static)` with *GCC*  
-  - `sections` with *CLANG*
+  - `sections` with *CLANG*  
+  - `reduction` with *GCC*  
+  - `master` with *GCC*  
 
 ### Unsupported
 
@@ -50,6 +52,8 @@ You can link object files from GCC and CLANG together with the same library.
 - `for ordered`
 - `schedule(runtime)`
 - named `critical`
+- `omp_lock_t`, `omp_init_lock()`, `omp_set_lock()`, `omp_unset_lock()`
+- OpenMP environment variables
 
 And other rarely used features.
 

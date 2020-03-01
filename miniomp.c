@@ -797,4 +797,9 @@ KMP_REDUCE_FUNC(reduce) { (void)loc; (void)gtid; (void)crit;
 KMP_END_REDUCE_FUNC(reduce_nowait) { (void)loc; (void)gtid; (void)crit; }
 KMP_END_REDUCE_FUNC(reduce) { (void)loc; (void)gtid; (void)crit; }
 
+EXPORT int32_t __kmpc_master(kmp_ident *loc, int32_t gtid) {
+	(void)loc; (void)gtid;
+	return gomp_thread()->team_id == 0;
+}
+EXPORT void __kmpc_end_master(kmp_ident *loc, int32_t gtid) { (void)loc; (void)gtid; }
 #endif

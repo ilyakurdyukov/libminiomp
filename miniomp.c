@@ -444,7 +444,12 @@ static void miniomp_barrier() {
 EXPORT void GOMP_barrier() { miniomp_barrier(); }
 EXPORT void GOMP_loop_end() { miniomp_barrier(); }
 
+#ifdef __APPLE__
+// error: aliases are not supported on darwin
+#define M1(fn, copy) __asm__(".globl _" #copy "\n\t.set _" #copy ", _" #fn);
+#else
 #define M1(fn, copy) extern __typeof(fn) copy __attribute__((alias(#fn)));
+#endif
 M1(GOMP_parallel_loop_dynamic, GOMP_parallel_loop_guided)
 M1(GOMP_parallel_loop_dynamic, GOMP_parallel_loop_nonmonotonic_dynamic)
 M1(GOMP_parallel_loop_dynamic, GOMP_parallel_loop_nonmonotonic_guided)
@@ -507,7 +512,7 @@ EXPORT void GOMP_sections_end() { miniomp_barrier(); }
 
 #if CLANG_KMP
 typedef void (*kmpc_micro)(int32_t *gtid, int32_t *tid, ...);
-typedef struct ident {
+typedef struct {
 	int32_t reserved_1, flags, reserved_2, reserved_3;
 	char const *psource;
 } kmp_ident;
